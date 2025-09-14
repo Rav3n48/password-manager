@@ -3,16 +3,15 @@ import pickle
 import hashlib
 import string
 import platform
-from typing import Dict, Any
 import base64
 import pickle
-
+import string
+import random
 import pyperclip
-import crypto
+from typing import Dict, Any
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
-from passwordgenerator import password_generator
 
 
 class PasswordInfo:
@@ -43,21 +42,44 @@ def banner() -> None:
 o888o  o888o o88o     o8888o       `8'       o888ooooood8 o8o        `8\n"""
     return banner
 
-# Turn master password to key
+
+def password_generator(
+        length=8, upper=False, lower=False, nums=False, special=False
+):
+    """Generate a password by customized parameters."""
+    chars = ''
+
+    if upper:
+        chars += string.ascii_uppercase
+    if lower:
+        chars += string.ascii_lowercase
+    if nums:
+        chars += string.digits
+    if special:
+        chars += string.punctuation
+
+    passwd = ''.join(random.choices(chars, k=length))
+
+    return passwd
+
+
 def passwd_to_key(passwd):
+    """Turn master password to key."""
     digest = hashes.Hash(hashes.SHA256())
     digest.update(passwd)
     return base64.urlsafe_b64encode(digest.finalize())
 
-# Encrypt data with key
+
 def encrypt(data, passwd):
+    """Encrypt data with key."""
     key = passwd_to_key(passwd)
     f = Fernet(key)
     serialized = pickle.dumps(data)
     return f.encrypt(serialized).decode()
 
-# Decrypt data with key
+
 def decrypt(token, passwd):
+    """Decrypt data with key."""
     try:
         key = passwd_to_key(passwd)
         f = Fernet(key)
@@ -67,30 +89,30 @@ def decrypt(token, passwd):
         return None
 
 
-def clear_screen() -> None:
+def clear_screen():
     """Clears the terminal screen."""
     OS_NAME = platform.system()
     CLEAR_SCREEN = "cls" if OS_NAME == "Windows" else "clear"
     os.system(CLEAR_SCREEN)
 
 
-def save(passwd: bytes) -> None:
+def save(passwd: bytes):
     """Encrypts and saves passwords to a file."""
     with open("nothing.dat", "wb") as file:
-        encrypted_data = crypto.encrypt(data=passwords, passwd=passwd)
+        encrypted_data = encrypt(data=passwords, passwd=passwd)
         pickle.dump(encrypted_data, file)
 
 
-def load_passwords(passwd: bytes) -> None:
+def load_passwords(passwd: bytes):
     """Loads and decrypts passwords from file."""
     if os.path.exists("nothing.dat"):
         with open("nothing.dat", "rb") as file:
             encrypted_data = pickle.load(file)
             global passwords
-            passwords = crypto.decrypt(token=encrypted_data, passwd=passwd)
+            passwords = decrypt(token=encrypted_data, passwd=passwd)
 
 
-def check_password(passwd: str) -> bool:
+def check_password(passwd: str):
     """Validates the master password."""
     if os.path.exists("sam.dat"):
         with open("sam.dat", "rb") as file:
@@ -105,13 +127,13 @@ def check_password(passwd: str) -> bool:
         return True
 
 
-def new_password() -> None:
+def new_password():
     """Creates a new password entry."""
     clear_screen()
     username = input("Enter username: ")
     email = input("Enter email: ")
     site = input("Enter website name or address: ")
-    extra = input("(Optional) Enter extra details: ")
+    extra = input("Enter extra details: ")
 
     custom_password = input("Do want to generate random password? (y/n): ").upper()
     if custom_password == "Y":
@@ -181,7 +203,7 @@ Password: {generated_pass}
         menu(msg="Canceled...")
 
 
-def find_password() -> None:
+def find_password():
     """Searches passwords by any field."""
     clear_screen()
     query = input("Search by anything (ID, username, etc.): ")
@@ -226,7 +248,7 @@ Password: {entry.password}
         menu(msg="Invalid input...")
 
 
-def show_all_passwords() -> None:
+def show_all_passwords():
     """Displays all saved passwords."""
     clear_screen()
     for entry in passwords.values():
@@ -256,7 +278,60 @@ Password: {entry.password}
         menu(msg="Invalid input...")
 
 
-def remove_password() -> None:
+def edit_password():
+    """Editing mode."""
+    clear_screen()
+    try:
+        pass_id = int(input("Enter ID to edit (0 to cancel): "))
+        if pass_id < 0:
+            menu(msg="Invalid input...")
+            return
+    except ValueError:
+        menu(msg="Invalid input...")
+        return
+    
+    if pass_id == 0:
+        menu(msg="Canceled...")
+    elif pass_id in passwords:
+        entry = passwords[pass_id]
+        print(f"""
+ID: {pass_id}
+Username: {entry.username}
+Email: {entry.email}
+Site: {entry.site}
+Description: {entry.extra}
+
+Password: {entry.password}
+{'-' * 40}""")
+        new_username = input(f"\nEnter new username (old: {entry.username}): ")
+        if not new_username:
+            new_username = entry.username
+        new_email = input(f"Enter new email (old: {entry.email}): ")
+        if not new_email:
+            new_email = entry.email
+        new_site = input(f"Enter new website name or address (old: {entry.site}): ")
+        if not new_site:
+            new_site = entry.site
+        new_extra = input(f"Enter new extra details (old: {entry.extra}): ")
+        if not new_extra:
+            new_extra = entry.extra
+        new_password = input(f"\nEnter new password (old: {entry.password}): ")
+        if not new_password:
+            new_password = entry.password
+        confirm = input("\nEdit this password? (old entries will be deleted) (y/n): ")
+        if confirm.upper() == "Y":
+            del passwords[entry.pass_id]
+            passwords[entry.pass_id] = PasswordInfo(entry.pass_id, new_username, new_email, new_site, new_extra, new_password)
+            pyperclip.copy(new_password)
+            save(entry_passwd)
+            menu(msg=f"Password with ID {entry.pass_id} edited and copied to clipboard!")
+        else:
+            menu(msg=f"Canceled...")
+    else:
+        menu(msg=f"ID not found...")
+        
+
+def remove_password():
     """Deletes a password entry by ID."""
     clear_screen()
     try:
@@ -294,7 +369,7 @@ Password: {entry.password}
         menu(msg="ID not found...")
 
 
-def reset_master_password() -> None:
+def reset_master_password():
     """Changes the master password."""
     clear_screen()
     old_pass = input("Enter current password: ").encode()
@@ -321,7 +396,7 @@ def reset_master_password() -> None:
     exit()
 
 
-def wipe_all_passwords() -> None:
+def wipe_all_passwords():
     """Deletes all saved passwords."""
     clear_screen()
     confirm = input("Delete ALL passwords? (y/n): ").upper()
@@ -368,10 +443,11 @@ Total passwords: {len(passwords)}
 1. Create new password
 2. Find a password
 3. Show all passwords
-4. Remove a password
-5. Reset master password
-6. Delete ALL passwords
-7. Exit (or 0)
+4. Edit password
+5. Remove a password
+6. Reset master password
+7. Delete ALL passwords
+8. Exit (or 0)
 
 {msg}
 """)
@@ -388,10 +464,11 @@ Total passwords: {len(passwords)}
         1: new_password,
         2: find_password,
         3: show_all_passwords,
-        4: remove_password,
-        5: reset_master_password,
-        6: wipe_all_passwords,
-        7: exit_app,
+        4: edit_password,
+        5: remove_password,
+        6: reset_master_password,
+        7: wipe_all_passwords,
+        8: exit_app,
         0: exit_app
     }
 

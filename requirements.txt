@@ -1,4 +1,4 @@
-cffi==1.17.1
-cryptography==45.0.6
-pycparser==2.22
+cffi==2.0.0
+cryptography==45.0.7
+pycparser==2.23
 pyperclip==1.9.0
