@@ -4,9 +4,14 @@ import hashlib
 import string
 import platform
 from typing import Dict, Any
+import base64
+import pickle
 
 import pyperclip
 import crypto
+
+from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.primitives import hashes
 from passwordgenerator import password_generator
 
 
@@ -37,6 +42,29 @@ def banner() -> None:
  888  `88b.   .8'     `888.       `888'       888       o  8       `888
 o888o  o888o o88o     o8888o       `8'       o888ooooood8 o8o        `8\n"""
     return banner
+
+# Turn master password to key
+def passwd_to_key(passwd):
+    digest = hashes.Hash(hashes.SHA256())
+    digest.update(passwd)
+    return base64.urlsafe_b64encode(digest.finalize())
+
+# Encrypt data with key
+def encrypt(data, passwd):
+    key = passwd_to_key(passwd)
+    f = Fernet(key)
+    serialized = pickle.dumps(data)
+    return f.encrypt(serialized).decode()
+
+# Decrypt data with key
+def decrypt(token, passwd):
+    try:
+        key = passwd_to_key(passwd)
+        f = Fernet(key)
+        decrypted_bytes = f.decrypt(token.encode())
+        return pickle.loads(decrypted_bytes)
+    except InvalidToken:
+        return None
 
 
 def clear_screen() -> None:
